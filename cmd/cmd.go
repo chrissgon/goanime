@@ -11,33 +11,29 @@ import (
 	"github.com/chrissgon/goanime/pkg"
 	"github.com/chrissgon/goanime/utils"
 	"github.com/google/uuid"
-	"github.com/joho/godotenv"
+
 	"github.com/machinebox/progress"
 )
 
-type providers string
+type Providers string
 
 const (
-	ANIMESONLINEHD providers = "ANIMESONLINEHD"
+	ANIMESONLINEHD Providers = "ANIMESONLINEHD"
 )
 
-var functions = map[string]pkg.NewScraperFunction{
+var Factories = map[string]pkg.NewScraperFunction{
 	"ANIMESONLINEHD": pkg.NewScraperAnimesOnlineHD,
 }
 
-func init() {
-	godotenv.Load()
-}
-
 // generate scraper by provider
-func NewScraper(provider providers, anime, episode string, dub bool) pkg.Scraper {
-	return functions[string(provider)](anime, episode, dub)
+func NewScraper(provider Providers, anime, episode string, dub bool) pkg.Scraper {
+	return Factories[string(provider)](anime, episode, dub)
 }
 
 // generate scrapers by providers
 func NewScrapers(anime, episode string, dub bool) (all []pkg.Scraper) {
-	for _, fn := range functions {
-		all = append(all, fn(anime, episode, dub))
+	for _, fs := range Factories {
+		all = append(all, fs(anime, episode, dub))
 	}
 	return
 }
