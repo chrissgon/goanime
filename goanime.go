@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"time"
@@ -20,10 +21,12 @@ type Providers string
 
 const (
 	ANIMESONLINEHD Providers = "ANIMESONLINEHD"
+	// ANIMESGAMES              = "ANIMESGAMES"
 )
 
 var factories = map[string]pkg.NewScraperFunction{
 	"ANIMESONLINEHD": pkg.NewScraperAnimesOnlineHD,
+	// "ANIMESGAMES":    pkg.NewScraperAnimesGames,
 }
 
 func init() {
@@ -93,7 +96,8 @@ func download(res *http.Response, status chan progress.Progress) (string, error)
 	base := os.Getenv("GOANIME_FOLDER")
 	rd := progress.NewReader(res.Body)
 
-	extension, err := utils.GetFileExtensionFromUrl(res.Request.URL.String())
+	extensions, err := mime.ExtensionsByType("video/mp4")
+	extension := extensions[len(extensions)-1]
 
 	if err != nil {
 		return "", utils.NewError("Download", err)
@@ -104,7 +108,7 @@ func download(res *http.Response, status chan progress.Progress) (string, error)
 		base = fmt.Sprintf("%s/", base)
 	}
 
-	filepath := fmt.Sprintf("%s%s.%s", base, uuid.New().String(), extension)
+	filepath := fmt.Sprintf("%s%s%s", base, uuid.New().String(), extension)
 	out, err := os.Create(filepath)
 
 	if err != nil {

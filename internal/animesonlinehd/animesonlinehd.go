@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"regexp"
 	"strings"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/chrissgon/goanime/utils"
 )
 
@@ -22,25 +22,23 @@ var REQUEST_HEADERS = map[string]string{
 	"Referer": "https://animesonlinehd.vip/",
 }
 
-func internalError(err error) error {
-	return utils.NewError("ANIMESONLINEHD", err)
-}
-
 func Search(anime, episode string, dub bool) (*http.Response, error) {
-	animesID, err := getAnimesID(anime)
+	urls, err := getAnimesEpisodesURL(anime)
 
 	if err != nil {
 		return nil, internalError(err)
 	}
 
 	if dub {
-		animesID = utils.FilterByMatchPattern(animesID, utils.DUB_REGEX)
+		urls = utils.FilterByMatchPattern(urls, utils.DUB_REGEX)
 	} else {
-		animesID = utils.FilterByNotMatchPattern(animesID, utils.DUB_REGEX)
-
+		urls = utils.FilterByNotMatchPattern(urls, utils.DUB_REGEX)
 	}
 
-	html, err := getReleasedEpisodeHTML(animesID, episode)
+	urlPattern := fmt.Sprintf("https://animesonlinehd.vip/%s", utils.ReplaceAllString(anime, "-", []string{"-"}))
+	url := utils.GetTitleWithGreatestSimilarity(urlPattern, urls)
+
+	html, err := getReleasedEpisodeHTML(url, episode)
 
 	if err != nil {
 		return nil, internalError(err)
@@ -60,57 +58,56 @@ func Search(anime, episode string, dub bool) (*http.Response, error) {
 
 	mp4URL = res.Request.Response.Header.Get("Location")
 
-	return utils.NewRequest(mp4URL, http.MethodGet, url.Values{}, REQUEST_HEADERS)
+	return utils.NewRequest(mp4URL, http.MethodGet, nil, REQUEST_HEADERS)
 }
 
-func getAnimesID(anime string) ([]string, error) {
+func getAnimesEpisodesURL(anime string) (urls []string, err error) {
 	query := strings.Join(strings.Split(anime, " "), "+")
 	url := fmt.Sprintf("https://animesonlinehd.vip/?s=%s", strings.ToLower(query))
 
-	searchPageDocument, err := utils.GetPageDocument(http.Get(url))
+	searchPageDocument, err := goquery.NewDocument(url)
 
 	if err != nil {
 		return nil, utils.NewError("getAnimesID", err)
 	}
 
 	duplicateUrls := utils.GetAttrByElements(searchPageDocument, "a[itemprop=URL]", "href")
-	urls := utils.RemoveDuplicateStrings(duplicateUrls)
+	urls = utils.RemoveDuplicateStrings(duplicateUrls)
 
-	animesID := []string{}
-
-	for _, url := range urls {
-		animeID := utils.ReplaceAllString(url, "", REPLACE_PATTERNS)
-		animesID = append(animesID, animeID)
+	if len(urls) == 0 {
+		return nil, internalError(utils.ERROR_NOT_FOUND)
 	}
 
-	return animesID, nil
+	return
 }
 
-func getReleasedEpisodeHTML(animesID []string, episode string) (string, error) {
-	timeout := make(chan error)
-	go utils.TimeoutRoutine(timeout)
-
-	response := make(chan string)
-	for _, animeID := range animesID {
-		go getPageOK(animeID, episode, response)
-	}
-
-	select {
-	case html := <-response:
-		return html, nil
-	case err := <-timeout:
-		return "", err
-	}
-}
-
-func getPageOK(animeID, episode string, response chan string) {
-	url := fmt.Sprintf("https://animesonlinehd.vip/episodio/%s-episodio-%s", animeID, episode)
+func getReleasedEpisodeHTML(url, episode string) (string, error) {
 	res, err := http.Get(url)
 
-	if err == nil && res.StatusCode == http.StatusOK {
-		str, _ := ioutil.ReadAll(res.Body)
-		response <- string(str)
+	if err != nil {
+		return "", utils.NewError("getReleasedEpisodeHTML", err)
 	}
+
+	defer res.Body.Close()
+
+	str, _ := ioutil.ReadAll(res.Body)
+	episodesHTML := string(str)
+
+	regexPattern := fmt.Sprintf("https://animesonlinehd.vip/episodio/.*?.%s.*?/", episode)
+	regexMatchEpisodeURL := regexp.MustCompile(regexPattern)
+
+	url = regexMatchEpisodeURL.FindString(episodesHTML)
+	res, err = http.Get(url)
+
+	if err != nil {
+		return "", utils.NewError("getReleasedEpisodeHTML", err)
+	}
+
+	defer res.Body.Close()
+
+	str, _ = ioutil.ReadAll(res.Body)
+
+	return string(str), nil
 }
 
 func getVideoURL(html string) (string, error) {
@@ -121,4 +118,8 @@ func getVideoURL(html string) (string, error) {
 	}
 
 	return url, nil
+}
+
+func internalError(err error) error {
+	return utils.NewError("ANIMESONLINEHD", err)
 }

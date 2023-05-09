@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -59,23 +60,15 @@ func FilterByNotMatchPattern(texts []string, pattern string) (filtered []string)
 	return
 }
 
-func ReplaceAllString(text string, new string, patterns []string) string {
+func ReplaceAllString(old string, new string, patterns []string) string {
 	for _, pattern := range patterns {
-		text = regexp.MustCompile(pattern).ReplaceAllString(text, new)
+		old = regexp.MustCompile(pattern).ReplaceAllString(old, new)
 	}
-	return text
-}
-
-func GetPageDocument(res *http.Response, err error) (*goquery.Document, error) {
-	if err != nil {
-		return nil, NewError("GetPageDocument", err)
-	}
-	defer res.Body.Close()
-	return goquery.NewDocumentFromReader(res.Body)
+	return old
 }
 
 func GetAttrByElements(doc *goquery.Document, selector, attr string) (occurences []string) {
-	doc.Find(selector).Each(func(i int, s *goquery.Selection) {
+	doc.Find(selector).Each(func(_ int, s *goquery.Selection) {
 		value, exists := s.Attr(attr)
 
 		if exists {
@@ -113,4 +106,55 @@ func TimeoutRoutine(timeout chan error) {
 	seconds, _ := strconv.Atoi(os.Getenv("GOANIME_TIMEOUT"))
 	time.Sleep(time.Duration(seconds) * time.Second)
 	timeout <- ERROR_TIMEOUT
+}
+
+func StrToInt(str string) (int, error) {
+	part := strings.Split(str, ".")[0]
+	return strconv.Atoi(part)
+}
+
+func GetTitleWithGreatestSimilarity(text string, titles []string) (title string) {
+	var greatest float64 = 0
+
+	for _, value := range titles {
+		similarity := cosineSimilarity(text, value)
+
+		if similarity > greatest {
+			greatest = similarity
+			title = value
+		}
+	}
+	return
+}
+
+func cosineSimilarity(s1 string, s2 string) float64 {
+	set1 := make(map[string]int)
+	set2 := make(map[string]int)
+
+	for _, char := range strings.Split(s1, "") {
+		set1[char]++
+	}
+
+	for _, char := range strings.Split(s2, "") {
+		set2[char]++
+	}
+
+	numerator := 0
+	for key, value := range set1 {
+		numerator += value * set2[key]
+	}
+
+	sum1 := 0
+	for _, value := range set1 {
+		sum1 += value * value
+	}
+	norm1 := math.Sqrt(float64(sum1))
+
+	sum2 := 0
+	for _, value := range set2 {
+		sum2 += value * value
+	}
+	norm2 := math.Sqrt(float64(sum2))
+
+	return float64(numerator) / (norm1 * norm2)
 }

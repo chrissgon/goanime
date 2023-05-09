@@ -10,6 +10,7 @@ require (
 )
 
 require (
+	github.com/AlexEidt/Vidio v1.4.2 // indirect
 	github.com/andybalholm/cascadia v1.3.1 // indirect
 	github.com/matryer/is v1.4.1 // indirect
 	golang.org/x/net v0.7.0 // indirect
