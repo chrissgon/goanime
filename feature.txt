@@ -1,0 +1,3 @@
+Refatorar codigo
+Fazer documentacao
+Verificar funcao SearchByScrapers

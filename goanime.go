@@ -24,7 +24,7 @@ const (
 	// ANIMESGAMES              = "ANIMESGAMES"
 )
 
-var factories = map[string]pkg.NewScraperFunction{
+var factories = map[string]pkg.ScraperFactory{
 	"ANIMESONLINEHD": pkg.NewScraperAnimesOnlineHD,
 	// "ANIMESGAMES":    pkg.NewScraperAnimesGames,
 }
